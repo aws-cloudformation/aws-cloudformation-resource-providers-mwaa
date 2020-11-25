@@ -1,0 +1,18 @@
+{
+    "typeName": "AWS::MWAA::Environment",
+    "language": "java",
+    "runtime": "java8",
+    "entrypoint": "software.amazon.mwaa.environment.HandlerWrapper::handleRequest",
+    "testEntrypoint": "software.amazon.mwaa.environment.HandlerWrapper::handleRequest",
+    "executableEntrypoint": "software.amazon.mwaa.environment.HandlerWrapperExecutable",
+    "settings": {
+        "namespace": [
+            "software",
+            "amazon",
+            "mwaa",
+            "environment"
+        ],
+        "codegen_template_path": "guided_aws",
+        "protocolVersion": "2.0.0"
+    }
+}
