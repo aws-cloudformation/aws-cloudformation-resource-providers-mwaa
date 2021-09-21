@@ -89,7 +89,7 @@ public class UpdateHandler extends BaseHandlerStd {
                         String.format("Update failed, Environment unavailable. %s", errorMessage));
             }
 
-            log("status is {}, requesting a callback in {}", status, CALLBACK_DELAY);
+            log("status is %s, requesting a callback in %s", status, CALLBACK_DELAY);
             return ProgressEvent.<ResourceModel, CallbackContext>builder()
                     .resourceModel(model)
                     .callbackContext(callbackContext)
