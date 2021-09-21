@@ -11,7 +11,9 @@ import software.amazon.awssdk.services.mwaa.model.Environment;
 import software.amazon.awssdk.services.mwaa.model.EnvironmentStatus;
 import software.amazon.awssdk.services.mwaa.model.GetEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.GetEnvironmentResponse;
+import software.amazon.awssdk.services.mwaa.model.LastUpdate;
 import software.amazon.awssdk.services.mwaa.model.ResourceNotFoundException;
+import software.amazon.awssdk.services.mwaa.model.UpdateError;
 import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
 import software.amazon.cloudformation.exceptions.CfnNotFoundException;
 import software.amazon.cloudformation.proxy.AmazonWebServicesClientProxy;
@@ -91,12 +93,34 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
             final GetEnvironmentRequest awsRequest) {
 
         try {
-            final GetEnvironmentResponse response = doReadEnvironment(awsRequest, mwaaClientProxy);
-            final Environment environment = response.environment();
+            final Environment environment = getEnvironment(mwaaClientProxy, awsRequest);
             final EnvironmentStatus status = EnvironmentStatus.fromValue(environment.statusAsString().toUpperCase());
 
             log("%s [%s] exists. Status: %s", ResourceModel.TYPE_NAME, environment.name(), status);
             return Optional.of(status);
+        } catch (CfnNotFoundException e) {
+            log("%s [%s] does not exist", ResourceModel.TYPE_NAME, awsRequest.name());
+            return Optional.empty();
+        }
+    }
+
+
+    protected Environment getEnvironment(final ProxyClient<MwaaClient> mwaaClientProxy,
+                                         final GetEnvironmentRequest awsRequest) {
+        final GetEnvironmentResponse response = doReadEnvironment(awsRequest, mwaaClientProxy);
+        return response.environment();
+
+    }
+
+    protected Optional<UpdateError> getLastUpdateError(
+            final ProxyClient<MwaaClient> mwaaClientProxy,
+            final String name) {
+        final GetEnvironmentRequest awsRequest = translateToReadRequest(name);
+        try {
+            final Environment environment = getEnvironment(mwaaClientProxy, awsRequest);
+            final Optional<UpdateError> lastUpdateError = Optional.of(environment.lastUpdate())
+                    .map(LastUpdate::error);
+            return lastUpdateError;
         } catch (CfnNotFoundException e) {
             log("%s [%s] does not exist", ResourceModel.TYPE_NAME, awsRequest.name());
             return Optional.empty();

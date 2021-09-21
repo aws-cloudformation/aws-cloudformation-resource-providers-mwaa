@@ -43,6 +43,7 @@ public final class CreateTranslator {
                         model.getAirflowConfigurationOptions()))
                 .environmentClass(model.getEnvironmentClass())
                 .maxWorkers(model.getMaxWorkers())
+                .minWorkers(model.getMinWorkers())
                 .networkConfiguration(toApiNetworkConfiguration(
                         model.getNetworkConfiguration()))
                 .loggingConfiguration(toApiLoggingConfiguration(

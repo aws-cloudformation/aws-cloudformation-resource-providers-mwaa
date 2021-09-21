@@ -19,6 +19,7 @@ import software.amazon.awssdk.services.mwaa.model.TagResourceRequest;
 import software.amazon.awssdk.services.mwaa.model.UntagResourceRequest;
 import software.amazon.awssdk.services.mwaa.model.UpdateEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.UpdateEnvironmentResponse;
+import software.amazon.awssdk.services.mwaa.model.UpdateError;
 import software.amazon.awssdk.services.mwaa.model.ValidationException;
 import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
 import software.amazon.cloudformation.exceptions.CfnNotUpdatableException;
@@ -35,6 +36,7 @@ import software.amazon.mwaa.translator.UpdateTranslator;
 /**
  * Handler for Update command.
  */
+@SuppressWarnings({"checkstyle:MethodLength"})
 public class UpdateHandler extends BaseHandlerStd {
     private static final Duration CALLBACK_DELAY = Duration.ofMinutes(1);
 
@@ -50,6 +52,11 @@ public class UpdateHandler extends BaseHandlerStd {
                     proxies.getMwaaClientProxy(),
                     model.getName());
 
+            final Optional<UpdateError> lastUpdateError = getLastUpdateError(
+                    proxies.getMwaaClientProxy(),
+                    model.getName());
+            String errorMessage = lastUpdateError.map(UpdateError::errorMessage).orElse("");
+
             if (!status.isPresent()) {
                 log("Environment not found, failing update");
                 return ProgressEvent.failed(
@@ -63,6 +70,23 @@ public class UpdateHandler extends BaseHandlerStd {
                 log("status is AVAILABLE, returning success");
                 return ProgressEvent.progress(model, callbackContext).then(
                         progress -> getEnvironmentDetails("Update::PostUpdateRead", proxies, progress));
+            }
+
+            if (status.get() == EnvironmentStatus.UPDATE_FAILED) {
+                log("status is UPDATE_FAILED, returning failure");
+                return ProgressEvent.failed(
+                        model,
+                        null,
+                        HandlerErrorCode.NotStabilized,
+                        String.format("Update failed. %s", errorMessage));
+            }
+            if (status.get() == EnvironmentStatus.UNAVAILABLE) {
+                log("status is UNAVAILABLE, returning failure");
+                return ProgressEvent.failed(
+                        model,
+                        null,
+                        HandlerErrorCode.NotStabilized,
+                        String.format("Update failed, Environment unavailable. %s", errorMessage));
             }
 
             log("status is {}, requesting a callback in {}", status, CALLBACK_DELAY);

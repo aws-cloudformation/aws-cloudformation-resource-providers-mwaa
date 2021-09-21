@@ -3,6 +3,7 @@
 package software.amazon.mwaa.translator;
 
 import static software.amazon.mwaa.translator.TypeTranslator.toApiLoggingConfiguration;
+import static software.amazon.mwaa.translator.TypeTranslator.toApiUpdateNetworkConfiguration;
 import static software.amazon.mwaa.translator.TypeTranslator.toStringToStringMap;
 
 import software.amazon.awssdk.services.mwaa.model.UpdateEnvironmentRequest;
@@ -29,6 +30,7 @@ public final class UpdateTranslator {
                 .name(model.getName())
                 .executionRoleArn(model.getExecutionRoleArn())
                 .airflowVersion(model.getAirflowVersion())
+                .networkConfiguration(toApiUpdateNetworkConfiguration(model.getNetworkConfiguration()))
                 .sourceBucketArn(model.getSourceBucketArn())
                 .dagS3Path(model.getDagS3Path())
                 .pluginsS3Path(model.getPluginsS3Path())
@@ -38,6 +40,7 @@ public final class UpdateTranslator {
                 .airflowConfigurationOptions(toStringToStringMap(model.getAirflowConfigurationOptions()))
                 .environmentClass(model.getEnvironmentClass())
                 .maxWorkers(model.getMaxWorkers())
+                .minWorkers(model.getMinWorkers())
                 .loggingConfiguration(toApiLoggingConfiguration(model.getLoggingConfiguration()))
                 .weeklyMaintenanceWindowStart(model.getWeeklyMaintenanceWindowStart())
                 .webserverAccessMode(model.getWebserverAccessMode())

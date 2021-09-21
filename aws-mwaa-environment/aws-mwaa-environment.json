@@ -19,7 +19,7 @@
     },
     "TagMap": {
       "type": "object",
-      "description": ""
+      "description": "A map of tags for the environment."
     },
     "EnvironmentName": {
       "type": "string",
@@ -30,14 +30,16 @@
     },
     "EnvironmentStatus": {
       "type": "string",
-      "description": "",
+      "description": "The status of the environment.",
       "enum": [
         "CREATING",
         "CREATE_FAILED",
         "AVAILABLE",
         "UPDATING",
         "DELETING",
-        "DELETED"
+        "DELETED",
+        "UPDATE_FAILED",
+        "UNAVAILABLE"
       ]
     },
     "UpdateStatus": {
@@ -81,7 +83,7 @@
       "description": "ARN for the AWS S3 bucket to use as the source of DAGs and plugins for the environment.",
       "minLength": 1,
       "maxLength": 1224,
-      "pattern": "^arn:aws(-[a-z]+)?:s3:::airflow-[a-z0-9.\\-]+$"
+      "pattern": "^arn:aws(-[a-z]+)?:s3:::[a-z0-9.\\-]+$"
     },
     "CreatedAt": {
       "type": "string",
@@ -128,10 +130,6 @@
       "maxLength": 1024,
       "pattern": ".*"
     },
-    "AirflowConfigurationOptions": {
-      "type": "object",
-      "description": "Key/value pairs representing Airflow configuration variables.\n    Keys are prefixed by their section:\n\n    [core]\n    dags_folder={AIRFLOW_HOME}/dags\n\n    Would be represented as\n\n    \"core.dags_folder\": \"{AIRFLOW_HOME}/dags\""
-    },
     "ConfigKey": {
       "type": "string",
       "description": "",
@@ -156,24 +154,6 @@
       "description": "",
       "maxLength": 1024,
       "pattern": "^subnet-[a-zA-Z0-9\\-._]+$"
-    },
-    "SubnetList": {
-      "type": "array",
-      "description": "",
-      "minItems": 2,
-      "maxItems": 2,
-      "items": {
-        "$ref": "#/definitions/SubnetId"
-      }
-    },
-    "SecurityGroupList": {
-      "type": "array",
-      "description": "",
-      "minItems": 1,
-      "maxItems": 5,
-      "items": {
-        "$ref": "#/definitions/SecurityGroupId"
-      }
     },
     "CloudWatchLogGroupArn": {
       "type": "string",
@@ -207,16 +187,33 @@
       "description": "Maximum worker compute units.",
       "minimum": 1
     },
+    "MinWorkers": {
+      "type": "integer",
+      "description": "Minimum worker compute units.",
+      "minimum": 1
+    },
     "NetworkConfiguration": {
       "type": "object",
       "description": "Configures the network resources of the environment.",
       "additionalProperties": false,
       "properties": {
         "SubnetIds": {
-          "$ref": "#/definitions/SubnetList"
+          "type": "array",
+          "description": "A list of subnets to use for the environment. These must be private subnets, in the same VPC, in two different availability zones.",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/definitions/SubnetId"
+          }
         },
         "SecurityGroupIds": {
-          "$ref": "#/definitions/SecurityGroupList"
+          "type": "array",
+          "description": "A list of security groups to use for the environment.",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/definitions/SecurityGroupId"
+          }
         }
       }
     },
@@ -320,11 +317,6 @@
       "maxLength": 1024,
       "pattern": "^.+$"
     },
-    "AirflowRbacRole": {
-      "type": "string",
-      "description": "",
-      "maxLength": 64
-    },
     "S3ObjectVersion": {
       "type": "string",
       "description": "Represents an version ID for an S3 object.",
@@ -349,23 +341,14 @@
     "Name": {
       "$ref": "#/definitions/EnvironmentName"
     },
-    "Status": {
-      "$ref": "#/definitions/EnvironmentStatus"
-    },
     "Arn": {
       "$ref": "#/definitions/EnvironmentArn"
-    },
-    "CreatedAt": {
-      "$ref": "#/definitions/CreatedAt"
     },
     "WebserverUrl": {
       "$ref": "#/definitions/WebserverUrl"
     },
     "ExecutionRoleArn": {
       "$ref": "#/definitions/ExecutionRoleArn"
-    },
-    "ServiceRoleArn": {
-      "$ref": "#/definitions/ServiceRoleArn"
     },
     "KmsKey": {
       "$ref": "#/definitions/KmsKey"
@@ -385,6 +368,9 @@
     "PluginsS3ObjectVersion": {
       "$ref": "#/definitions/S3ObjectVersion"
     },
+    "MinWorkers": {
+      "$ref": "#/definitions/MinWorkers"
+    },
     "RequirementsS3Path": {
       "$ref": "#/definitions/RelativePath"
     },
@@ -392,7 +378,8 @@
       "$ref": "#/definitions/S3ObjectVersion"
     },
     "AirflowConfigurationOptions": {
-      "$ref": "#/definitions/AirflowConfigurationOptions"
+      "type": "object",
+      "description": "Key/value pairs representing Airflow configuration variables.\n    Keys are prefixed by their section:\n\n    [core]\n    dags_folder={AIRFLOW_HOME}/dags\n\n    Would be represented as\n\n    \"core.dags_folder\": \"{AIRFLOW_HOME}/dags\""
     },
     "EnvironmentClass": {
       "$ref": "#/definitions/EnvironmentClass"
@@ -405,9 +392,6 @@
     },
     "LoggingConfiguration": {
       "$ref": "#/definitions/LoggingConfiguration"
-    },
-    "LastUpdate": {
-      "$ref": "#/definitions/LastUpdate"
     },
     "WeeklyMaintenanceWindowStart": {
       "$ref": "#/definitions/WeeklyMaintenanceWindowStart"
@@ -424,15 +408,18 @@
     "Name"
   ],
   "createOnlyProperties": [
-    "/properties/NetworkConfiguration"
+    "/properties/Name",
+    "/properties/KmsKey",
+    "/properties/NetworkConfiguration/SubnetIds"
   ],
   "readOnlyProperties": [
-    "/properties/CreatedAt",
-    "/properties/LastUpdate",
-    "/properties/ServiceRoleArn",
     "/properties/Arn",
-    "/properties/Status",
-    "/properties/Name"
+    "/properties/WebserverUrl",
+    "/properties/LoggingConfiguration/DagProcessingLogs/CloudWatchLogGroupArn",
+    "/properties/LoggingConfiguration/SchedulerLogs/CloudWatchLogGroupArn",
+    "/properties/LoggingConfiguration/WebserverLogs/CloudWatchLogGroupArn",
+    "/properties/LoggingConfiguration/WorkerLogs/CloudWatchLogGroupArn",
+    "/properties/LoggingConfiguration/TaskLogs/CloudWatchLogGroupArn"
   ],
   "primaryIdentifier": [
     "/properties/Name"
@@ -441,7 +428,8 @@
     "create": {
       "permissions": [
         "airflow:CreateEnvironment"
-      ]
+      ],
+      "timeoutInMinutes": 180
     },
     "read": {
       "permissions": [
@@ -451,7 +439,8 @@
     "update": {
       "permissions": [
         "airflow:UpdateEnvironment"
-      ]
+      ],
+      "timeoutInMinutes": 480
     },
     "delete": {
       "permissions": [
