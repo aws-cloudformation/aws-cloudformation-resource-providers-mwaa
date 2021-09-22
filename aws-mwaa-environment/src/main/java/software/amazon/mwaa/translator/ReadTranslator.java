@@ -54,6 +54,7 @@ public final class ReadTranslator {
 
         return ResourceModel.builder()
                 .name(env.name())
+                .arn(env.arn())
                 .executionRoleArn(env.executionRoleArn())
                 .kmsKey(env.kmsKey())
                 .airflowVersion(env.airflowVersion())
@@ -66,11 +67,13 @@ public final class ReadTranslator {
                 .airflowConfigurationOptions(toStringToObjectMap(env.airflowConfigurationOptions()))
                 .environmentClass(env.environmentClass())
                 .maxWorkers(env.maxWorkers())
+                .minWorkers(env.minWorkers())
                 .networkConfiguration(toCfnNetworkConfiguration(env.networkConfiguration()))
                 .loggingConfiguration(toCfnLoggingConfiguration(env.loggingConfiguration()))
                 .weeklyMaintenanceWindowStart(env.weeklyMaintenanceWindowStart())
                 .tags(toStringToObjectMap(removeInternalTags(env.tags())))
                 .webserverAccessMode(env.webserverAccessModeAsString())
+                .webserverUrl(env.webserverUrl())
                 .build();
     }
 }

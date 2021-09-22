@@ -21,11 +21,14 @@ import software.amazon.awssdk.services.mwaa.model.Environment;
 import software.amazon.awssdk.services.mwaa.model.EnvironmentStatus;
 import software.amazon.awssdk.services.mwaa.model.GetEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.GetEnvironmentResponse;
+import software.amazon.awssdk.services.mwaa.model.LastUpdate;
 import software.amazon.awssdk.services.mwaa.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.mwaa.model.TagResourceRequest;
 import software.amazon.awssdk.services.mwaa.model.UntagResourceRequest;
 import software.amazon.awssdk.services.mwaa.model.UpdateEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.UpdateEnvironmentResponse;
+import software.amazon.awssdk.services.mwaa.model.UpdateError;
+import software.amazon.awssdk.services.mwaa.model.UpdateStatus;
 import software.amazon.awssdk.services.mwaa.model.ValidationException;
 import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
 import software.amazon.cloudformation.exceptions.CfnNotFoundException;
@@ -34,6 +37,7 @@ import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+
 
 /**
  * Tests for {@link UpdateHandler}.
@@ -44,6 +48,12 @@ public class UpdateHandlerTest extends HandlerTestBase {
     private static final String NEW_TAG_KEY = "NEW_KEY";
     private static final String NEW_TAG_VALUE = "NEW_VALUE";
     private static final String INVALID_DATA = "INVALID_DATA";
+    private static final Integer UPDATED_MIN_WORKERS = 2;
+    private static final String LAST_UPDATE_ERROR_MESSAGE = "SOME_ERROR_MESSAGE";
+    private UpdateError error = UpdateError.builder().errorMessage(LAST_UPDATE_ERROR_MESSAGE).build();
+    private LastUpdate lastUpdateFailed = LastUpdate.builder().status(UpdateStatus.FAILED).error(error).build();
+    private LastUpdate lastUpdateSuccess = LastUpdate.builder().status(UpdateStatus.SUCCESS).build();
+
 
     /**
      * Prepares mocks.
@@ -69,8 +79,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
     public void handleRequestSimpleSuccess() {
         // given
         final UpdateHandler handler = new UpdateHandler();
-        final ResourceModel model = createCfnModel();
-        model.setMaxWorkers(UPDATED_MAX_WORKERS);
+        final ResourceModel model = createUpdatedCfnModel();
         model.setTags(ImmutableMap.of(NEW_TAG_KEY, NEW_TAG_VALUE));
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
@@ -113,6 +122,109 @@ public class UpdateHandlerTest extends HandlerTestBase {
         verify(getSdkClient(), times(1)).tagResource(any(TagResourceRequest.class));
     }
 
+    @Test
+    public void handleRequestUpdateFailed() {
+        // given
+        final UpdateHandler handler = new UpdateHandler();
+        final ResourceModel model = createUpdatedCfnModel();
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+        final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
+        final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
+        final GetEnvironmentResponse updateFailed = createGetUpdateFailedEnvironmentResponse();
+
+        when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
+                // at first the environment exists
+                .thenReturn(existing)
+                // then it stays in updating mode for a while
+                .thenReturn(updating)
+                // then it is gone
+                .thenReturn(updateFailed);
+
+        final UpdateEnvironmentResponse awsUpdateEnvironmentResponse = UpdateEnvironmentResponse.builder().build();
+        when(getSdkClient().updateEnvironment(any(UpdateEnvironmentRequest.class)))
+                .thenReturn(awsUpdateEnvironmentResponse);
+
+        // when
+        ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(
+                getProxies(), request, new CallbackContext());
+        // then
+        checkResponseNeedsCallback(response);
+
+        // when called back
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+        // then
+        checkResponseNeedsCallback(response);
+
+        // when called back after environment is lost
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isEqualTo(String.format("Update failed. %s", LAST_UPDATE_ERROR_MESSAGE));
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.NotStabilized);
+        assertThat(response.getCallbackContext()).isNull();
+    }
+
+    /**
+     * Tests a sad path.
+     */
+    @Test
+    public void handleRequestUpdateEnvironmentUnavailable() {
+        // given
+        final UpdateHandler handler = new UpdateHandler();
+        final ResourceModel model = createUpdatedCfnModel();
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+        final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
+        final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
+        final GetEnvironmentResponse environmentUnavailable = createGetUnavailableEnvironmentResponse();
+
+        when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
+                // at first the environment exists
+                .thenReturn(existing)
+                // then it stays in updating mode for a while
+                .thenReturn(updating)
+                // then it is gone
+                .thenReturn(environmentUnavailable);
+
+        final UpdateEnvironmentResponse awsUpdateEnvironmentResponse = UpdateEnvironmentResponse.builder().build();
+        when(getSdkClient().updateEnvironment(any(UpdateEnvironmentRequest.class)))
+                .thenReturn(awsUpdateEnvironmentResponse);
+
+        // when
+        ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(
+                getProxies(), request, new CallbackContext());
+        // then
+        checkResponseNeedsCallback(response);
+
+        // when called back
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+        // then
+        checkResponseNeedsCallback(response);
+
+        // when called back after environment is lost
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        assertThat(response).isNotNull();
+        assertThat(response.getStatus()).isEqualTo(OperationStatus.FAILED);
+        assertThat(response.getCallbackDelaySeconds()).isEqualTo(0);
+        assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
+        assertThat(response.getResourceModels()).isNull();
+        assertThat(response.getMessage()).isEqualTo(String.format("Update failed, Environment unavailable. %s",
+                LAST_UPDATE_ERROR_MESSAGE));
+        assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.NotStabilized);
+        assertThat(response.getCallbackContext()).isNull();
+    }
+
+
     /**
      * Tests a sad path.
      */
@@ -120,8 +232,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
     public void handleResourceMissingDuringUpdate() {
         // given
         final UpdateHandler handler = new UpdateHandler();
-        final ResourceModel model = createCfnModel();
-        model.setMaxWorkers(UPDATED_MAX_WORKERS);
+        final ResourceModel model = createUpdatedCfnModel();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
                 .build();
@@ -269,6 +380,13 @@ public class UpdateHandlerTest extends HandlerTestBase {
         verify(getSdkClient(), atLeastOnce()).untagResource(any(UntagResourceRequest.class));
     }
 
+    private ResourceModel createUpdatedCfnModel() {
+        final ResourceModel model = createCfnModel();
+        model.setMaxWorkers(UPDATED_MAX_WORKERS);
+        model.setMinWorkers(UPDATED_MIN_WORKERS);
+        return model;
+    }
+
     private GetEnvironmentResponse createGetExistingEnvironmentResponse() {
         final Environment environment = createApiEnvironment(EnvironmentStatus.AVAILABLE);
         return GetEnvironmentResponse.builder().environment(environment).build();
@@ -283,7 +401,25 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final Environment environment = createApiEnvironment(EnvironmentStatus.AVAILABLE)
                 .toBuilder()
                 .maxWorkers(UPDATED_MAX_WORKERS)
+                .minWorkers(UPDATED_MIN_WORKERS)
                 .tags(ImmutableMap.of(NEW_TAG_KEY, NEW_TAG_VALUE))
+                .lastUpdate(lastUpdateSuccess)
+                .build();
+        return GetEnvironmentResponse.builder().environment(environment).build();
+    }
+
+    private GetEnvironmentResponse createGetUpdateFailedEnvironmentResponse() {
+        final Environment environment = createApiEnvironment(EnvironmentStatus.UPDATE_FAILED)
+                .toBuilder()
+                .lastUpdate(lastUpdateFailed)
+                .build();
+        return GetEnvironmentResponse.builder().environment(environment).build();
+    }
+
+    private GetEnvironmentResponse createGetUnavailableEnvironmentResponse() {
+        final Environment environment = createApiEnvironment(EnvironmentStatus.UNAVAILABLE)
+                .toBuilder()
+                .lastUpdate(lastUpdateFailed)
                 .build();
         return GetEnvironmentResponse.builder().environment(environment).build();
     }

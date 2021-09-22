@@ -46,6 +46,7 @@ public class HandlerTestBase {
     private static final String ENVIRONMENT_CLASS = "ENVIRONMENT_CLASS";
     private static final String WEEKLY_MAINTENANCE_WINDOW_START = "WEEKLY_MAINTENANCE_WINDOW_START";
     private static final Integer MAX_WORKERS = 3;
+    private static final Integer MIN_WORKERS = 1;
     private static final String KEY = "KEY";
     private static final String VALUE = "VALUE";
     private static final String KEY_INTERNAL = "aws:tag:domain";
@@ -182,6 +183,7 @@ public class HandlerTestBase {
                 .requirementsS3ObjectVersion(REQUIREMENTS_S3_OBJECT_VERSION)
                 .environmentClass(ENVIRONMENT_CLASS)
                 .maxWorkers(MAX_WORKERS)
+                .minWorkers(MIN_WORKERS)
                 .weeklyMaintenanceWindowStart(WEEKLY_MAINTENANCE_WINDOW_START)
                 .airflowConfigurationOptions(ImmutableMap.of(KEY, VALUE))
                 .networkConfiguration(new NetworkConfiguration(
@@ -213,6 +215,7 @@ public class HandlerTestBase {
                 .requirementsS3ObjectVersion(REQUIREMENTS_S3_OBJECT_VERSION)
                 .environmentClass(ENVIRONMENT_CLASS)
                 .maxWorkers(MAX_WORKERS)
+                .minWorkers(MIN_WORKERS)
                 .weeklyMaintenanceWindowStart(WEEKLY_MAINTENANCE_WINDOW_START)
                 .airflowConfigurationOptions(ImmutableMap.of(KEY, VALUE))
                 .networkConfiguration(createNetworkConfiguration())

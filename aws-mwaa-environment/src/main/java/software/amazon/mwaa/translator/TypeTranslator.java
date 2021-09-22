@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.mwaa.model.LoggingConfigurationInput;
 import software.amazon.awssdk.services.mwaa.model.ModuleLoggingConfiguration;
 import software.amazon.awssdk.services.mwaa.model.ModuleLoggingConfigurationInput;
 import software.amazon.awssdk.services.mwaa.model.NetworkConfiguration;
+import software.amazon.awssdk.services.mwaa.model.UpdateNetworkConfigurationInput;
 
 /**
  * Provides translation between different types of CFN Model and SDK.
@@ -111,6 +112,24 @@ public final class TypeTranslator {
 
         return NetworkConfiguration.builder()
                 .subnetIds(input.getSubnetIds())
+                .securityGroupIds(input.getSecurityGroupIds())
+                .build();
+    }
+
+    /**
+     * Converts CFN NetworkConfiguration to API UpdateNetworkConfigurationInput.
+     *
+     * @param input
+     *         CFN NetworkConfiguration
+     * @return API UpdateNetworkConfigurationInput
+     */
+    public static UpdateNetworkConfigurationInput toApiUpdateNetworkConfiguration(
+            final software.amazon.mwaa.environment.NetworkConfiguration input) {
+        if (input == null) {
+            return null;
+        }
+
+        return UpdateNetworkConfigurationInput.builder()
                 .securityGroupIds(input.getSecurityGroupIds())
                 .build();
     }
