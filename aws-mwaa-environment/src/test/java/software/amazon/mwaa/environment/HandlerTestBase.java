@@ -43,10 +43,13 @@ public class HandlerTestBase {
     private static final String PLUGINS_S3_OBJECT_VERSION = "PLUGINS_S3_OBJECT_VERSION";
     private static final String REQUIREMENTS_S3_PATH = "REQUIREMENTS_S3_PATH";
     private static final String REQUIREMENTS_S3_OBJECT_VERSION = "REQUIREMENTS_S3_OBJECT_VERSION";
+    private static final String STARTUP_SCRIPT_S3_PATH = "STARTUP_SCRIPT_S3_PATH";
+    private static final String STARTUP_SCRIPT_S3_OBJECT_VERSION = "STARTUP_SCRIPT_S3_OBJECT_VERSION";
     private static final String ENVIRONMENT_CLASS = "ENVIRONMENT_CLASS";
     private static final String WEEKLY_MAINTENANCE_WINDOW_START = "WEEKLY_MAINTENANCE_WINDOW_START";
     private static final Integer MAX_WORKERS = 3;
     private static final Integer MIN_WORKERS = 1;
+    private static final Integer SCHEDULERS = 2;
     private static final String KEY = "KEY";
     private static final String VALUE = "VALUE";
     private static final String KEY_INTERNAL = "aws:tag:domain";
@@ -181,9 +184,12 @@ public class HandlerTestBase {
                 .pluginsS3ObjectVersion(PLUGINS_S3_OBJECT_VERSION)
                 .requirementsS3Path(REQUIREMENTS_S3_PATH)
                 .requirementsS3ObjectVersion(REQUIREMENTS_S3_OBJECT_VERSION)
+                .startupScriptS3Path(STARTUP_SCRIPT_S3_PATH)
+                .startupScriptS3ObjectVersion(STARTUP_SCRIPT_S3_OBJECT_VERSION)
                 .environmentClass(ENVIRONMENT_CLASS)
                 .maxWorkers(MAX_WORKERS)
                 .minWorkers(MIN_WORKERS)
+                .schedulers(SCHEDULERS)
                 .weeklyMaintenanceWindowStart(WEEKLY_MAINTENANCE_WINDOW_START)
                 .airflowConfigurationOptions(ImmutableMap.of(KEY, VALUE))
                 .networkConfiguration(new NetworkConfiguration(
@@ -213,9 +219,12 @@ public class HandlerTestBase {
                 .pluginsS3ObjectVersion(PLUGINS_S3_OBJECT_VERSION)
                 .requirementsS3Path(REQUIREMENTS_S3_PATH)
                 .requirementsS3ObjectVersion(REQUIREMENTS_S3_OBJECT_VERSION)
+                .startupScriptS3Path(STARTUP_SCRIPT_S3_PATH)
+                .startupScriptS3ObjectVersion(STARTUP_SCRIPT_S3_OBJECT_VERSION)
                 .environmentClass(ENVIRONMENT_CLASS)
                 .maxWorkers(MAX_WORKERS)
                 .minWorkers(MIN_WORKERS)
+                .schedulers(SCHEDULERS)
                 .weeklyMaintenanceWindowStart(WEEKLY_MAINTENANCE_WINDOW_START)
                 .airflowConfigurationOptions(ImmutableMap.of(KEY, VALUE))
                 .networkConfiguration(createNetworkConfiguration())

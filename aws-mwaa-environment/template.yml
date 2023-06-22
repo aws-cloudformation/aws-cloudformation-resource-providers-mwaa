@@ -4,7 +4,7 @@ Description: AWS SAM template for the AWS::MWAA::Environment resource type
 
 Globals:
   Function:
-    Timeout: 180  # docker start-up times can be long for SAM CLI
+    Timeout: 300  # docker start-up times can be long for SAM CLI. Retry delays can also be long
     MemorySize: 256
 
 Resources:

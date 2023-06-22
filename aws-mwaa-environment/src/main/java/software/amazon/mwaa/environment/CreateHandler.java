@@ -2,12 +2,21 @@
 
 package software.amazon.mwaa.environment;
 
+import com.github.rholder.retry.Attempt;
+import com.github.rholder.retry.RetryException;
+import com.github.rholder.retry.RetryListener;
+import com.github.rholder.retry.Retryer;
+import com.github.rholder.retry.RetryerBuilder;
+import com.github.rholder.retry.StopStrategies;
+import com.github.rholder.retry.WaitStrategies;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import software.amazon.awssdk.services.mwaa.MwaaClient;
 import software.amazon.awssdk.services.mwaa.model.CreateEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.CreateEnvironmentResponse;
 import software.amazon.awssdk.services.mwaa.model.EnvironmentStatus;
+import software.amazon.awssdk.services.mwaa.model.InternalServerException;
 import software.amazon.awssdk.services.mwaa.model.ValidationException;
 import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
@@ -24,6 +33,7 @@ import software.amazon.mwaa.translator.ReadTranslator;
  */
 public class CreateHandler extends BaseHandlerStd {
     private static final Duration CALLBACK_DELAY = Duration.ofMinutes(1);
+    public static final int MAX_RETRIES = 14;
 
     protected ProgressEvent<ResourceModel, CallbackContext> handleRequest(
             final Proxies proxies,
@@ -91,14 +101,36 @@ public class CreateHandler extends BaseHandlerStd {
 
         try {
             log("Creating %s [%s]", ResourceModel.TYPE_NAME, name);
-            final CreateEnvironmentResponse response = mwaaClientProxy.injectCredentialsAndInvokeV2(
+
+            final CreateEnvironmentRetryListener listener = new CreateEnvironmentRetryListener(
+                    getLogger(), MAX_RETRIES, name);
+            final Retryer<CreateEnvironmentResponse> retryer = getCreateEnvironmentRetryer(listener);
+
+            final CreateEnvironmentResponse response = retryer.call(() -> mwaaClientProxy.injectCredentialsAndInvokeV2(
                     awsRequest,
-                    mwaaClientProxy.client()::createEnvironment);
+                    mwaaClientProxy.client()::createEnvironment));
             log("Create submitted %s [%s]", ResourceModel.TYPE_NAME, name);
             callbackContext.setStabilizing(true);
             return response;
-        } catch (final ValidationException e) {
-            throw new CfnInvalidRequestException(e.getMessage(), e);
+        } catch (final RetryException e) {
+            final Attempt<?> lastAttempt = e.getLastFailedAttempt();
+            Throwable rootCause = lastAttempt.getExceptionCause();
+            log("CreateEnvironment [%s]: Reached maximum number of retires. Total delay since first attempt: %dms",
+                    name,
+                    lastAttempt.getDelaySinceFirstAttempt());
+            throw new CfnInvalidRequestException(rootCause.getMessage(), e);
+        } catch (ExecutionException e) {
+            throw new CfnInvalidRequestException(e.getCause().getMessage(), e);
         }
+    }
+
+    private Retryer<CreateEnvironmentResponse> getCreateEnvironmentRetryer(RetryListener listener) {
+        return RetryerBuilder.<CreateEnvironmentResponse>newBuilder()
+                .retryIfExceptionOfType(ValidationException.class)
+                .retryIfExceptionOfType(InternalServerException.class)
+                .withRetryListener(listener)
+                .withWaitStrategy(WaitStrategies.exponentialWait())
+                .withStopStrategy(StopStrategies.stopAfterAttempt(MAX_RETRIES))
+                .build();
     }
 }

@@ -38,22 +38,21 @@ import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
 
-
 /**
  * Tests for {@link UpdateHandler}.
  */
 @ExtendWith(MockitoExtension.class)
 public class UpdateHandlerTest extends HandlerTestBase {
     private static final Integer UPDATED_MAX_WORKERS = 5;
+    private static final Integer UPDATED_MIN_WORKERS = 2;
+    private static final Integer UPDATED_SCHEDULERS = 3;
     private static final String NEW_TAG_KEY = "NEW_KEY";
     private static final String NEW_TAG_VALUE = "NEW_VALUE";
     private static final String INVALID_DATA = "INVALID_DATA";
-    private static final Integer UPDATED_MIN_WORKERS = 2;
     private static final String LAST_UPDATE_ERROR_MESSAGE = "SOME_ERROR_MESSAGE";
     private UpdateError error = UpdateError.builder().errorMessage(LAST_UPDATE_ERROR_MESSAGE).build();
     private LastUpdate lastUpdateFailed = LastUpdate.builder().status(UpdateStatus.FAILED).error(error).build();
     private LastUpdate lastUpdateSuccess = LastUpdate.builder().status(UpdateStatus.SUCCESS).build();
-
 
     /**
      * Prepares mocks.
@@ -122,6 +121,9 @@ public class UpdateHandlerTest extends HandlerTestBase {
         verify(getSdkClient(), times(1)).tagResource(any(TagResourceRequest.class));
     }
 
+    /**
+     * Tests a sad path.
+     */
     @Test
     public void handleRequestUpdateFailed() {
         // given
@@ -219,7 +221,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
         assertThat(response.getResourceModel()).isEqualTo(request.getDesiredResourceState());
         assertThat(response.getResourceModels()).isNull();
         assertThat(response.getMessage()).isEqualTo(String.format("Update failed, Environment unavailable. %s",
-                LAST_UPDATE_ERROR_MESSAGE));
+                                                                  LAST_UPDATE_ERROR_MESSAGE));
         assertThat(response.getErrorCode()).isEqualTo(HandlerErrorCode.NotStabilized);
         assertThat(response.getCallbackContext()).isNull();
     }
@@ -236,7 +238,6 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
                 .build();
-
         final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
         final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
 
@@ -384,6 +385,8 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final ResourceModel model = createCfnModel();
         model.setMaxWorkers(UPDATED_MAX_WORKERS);
         model.setMinWorkers(UPDATED_MIN_WORKERS);
+        model.setSchedulers(UPDATED_SCHEDULERS);
+
         return model;
     }
 
@@ -402,6 +405,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
                 .toBuilder()
                 .maxWorkers(UPDATED_MAX_WORKERS)
                 .minWorkers(UPDATED_MIN_WORKERS)
+                .schedulers(UPDATED_SCHEDULERS)
                 .tags(ImmutableMap.of(NEW_TAG_KEY, NEW_TAG_VALUE))
                 .lastUpdate(lastUpdateSuccess)
                 .build();
@@ -423,4 +427,5 @@ public class UpdateHandlerTest extends HandlerTestBase {
                 .build();
         return GetEnvironmentResponse.builder().environment(environment).build();
     }
+
 }
