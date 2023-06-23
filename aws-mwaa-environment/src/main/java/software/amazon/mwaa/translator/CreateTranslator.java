@@ -39,11 +39,15 @@ public final class CreateTranslator {
                 .requirementsS3Path(model.getRequirementsS3Path())
                 .requirementsS3ObjectVersion(
                         model.getRequirementsS3ObjectVersion())
+                .startupScriptS3Path(model.getStartupScriptS3Path())
+                .startupScriptS3ObjectVersion(
+                        model.getStartupScriptS3ObjectVersion())
                 .airflowConfigurationOptions(toStringToStringMap(
                         model.getAirflowConfigurationOptions()))
                 .environmentClass(model.getEnvironmentClass())
                 .maxWorkers(model.getMaxWorkers())
                 .minWorkers(model.getMinWorkers())
+                .schedulers(model.getSchedulers())
                 .networkConfiguration(toApiNetworkConfiguration(
                         model.getNetworkConfiguration()))
                 .loggingConfiguration(toApiLoggingConfiguration(

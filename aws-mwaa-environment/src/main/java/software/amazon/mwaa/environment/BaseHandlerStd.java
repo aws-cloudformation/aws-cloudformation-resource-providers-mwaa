@@ -104,7 +104,6 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         }
     }
 
-
     protected Environment getEnvironment(final ProxyClient<MwaaClient> mwaaClientProxy,
                                          final GetEnvironmentRequest awsRequest) {
         final GetEnvironmentResponse response = doReadEnvironment(awsRequest, mwaaClientProxy);
@@ -181,5 +180,9 @@ public abstract class BaseHandlerStd extends BaseHandler<CallbackContext> {
         } catch (ResourceNotFoundException e) {
             throw new CfnNotFoundException(ResourceModel.TYPE_NAME, request.name(), e);
         }
+    }
+
+    protected Logger getLogger() {
+        return this.logger;
     }
 }

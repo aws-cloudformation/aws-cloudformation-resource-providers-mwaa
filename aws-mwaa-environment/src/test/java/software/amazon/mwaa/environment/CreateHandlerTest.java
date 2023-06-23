@@ -3,9 +3,11 @@
 package software.amazon.mwaa.environment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -14,13 +16,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.services.mwaa.MwaaClient;
+import software.amazon.awssdk.services.mwaa.model.AccessDeniedException;
 import software.amazon.awssdk.services.mwaa.model.CreateEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.CreateEnvironmentResponse;
 import software.amazon.awssdk.services.mwaa.model.Environment;
 import software.amazon.awssdk.services.mwaa.model.EnvironmentStatus;
 import software.amazon.awssdk.services.mwaa.model.GetEnvironmentRequest;
 import software.amazon.awssdk.services.mwaa.model.GetEnvironmentResponse;
+import software.amazon.awssdk.services.mwaa.model.InternalServerException;
 import software.amazon.awssdk.services.mwaa.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.mwaa.model.ValidationException;
 import software.amazon.cloudformation.exceptions.CfnAlreadyExistsException;
@@ -28,7 +35,10 @@ import software.amazon.cloudformation.exceptions.CfnInvalidRequestException;
 import software.amazon.cloudformation.proxy.HandlerErrorCode;
 import software.amazon.cloudformation.proxy.OperationStatus;
 import software.amazon.cloudformation.proxy.ProgressEvent;
+import software.amazon.cloudformation.proxy.ProxyClient;
 import software.amazon.cloudformation.proxy.ResourceHandlerRequest;
+import software.amazon.mwaa.translator.CreateTranslator;
+import software.amazon.mwaa.translator.ReadTranslator;
 
 /**
  * Tests for {@link CreateHandler}.
@@ -195,6 +205,86 @@ public class CreateHandlerTest extends HandlerTestBase {
     }
 
     /**
+     * Asserts throwing {@link CfnInvalidRequestException} when request experiences transient error on retry.
+     */
+    @Test
+    public void handleRequestInvalidInputNonRetryableException() {
+        // given
+        final CreateHandler handler = new CreateHandler();
+        final ResourceModel model = ResourceModel.builder().name("NAME").kmsKey(INVALID_DATA).build();
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+        final GetEnvironmentRequest awsGetEnvironmentRequest = ReadTranslator.translateToReadRequest(model);
+        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(model);
+        ProxyClient<MwaaClient> mwaaClientProxy = getProxies().getMwaaClientProxy();
+
+        // when
+        when(mwaaClientProxy.injectCredentialsAndInvokeV2(awsGetEnvironmentRequest,
+                mwaaClientProxy.client()::getEnvironment))
+                .thenThrow(ResourceNotFoundException.class);
+
+        when(mwaaClientProxy.injectCredentialsAndInvokeV2(awsCreateEnvironmentRequest,
+                mwaaClientProxy.client()::createEnvironment))
+                .thenThrow(AccessDeniedException.builder().message(INVALID_DATA).build());
+
+        // then
+        assertThatThrownBy(() -> handler.handleRequest(
+                getProxies(),
+                request,
+                new CallbackContext())
+        ).isInstanceOf(CfnInvalidRequestException.class);
+
+        verify(getSdkClient(), times(1)).createEnvironment(
+                any(CreateEnvironmentRequest.class));
+    }
+
+    /**
+     * Asserts that environment is successfully created after recovering from both
+     * {@link ValidationException} and {@link InternalServerException}.
+     * @param mwaaCreateEnvironmentExceptionClass class of Exception to be thrown by
+     *                                            mwaa client upon CreateEnvironment request.
+     */
+    @ParameterizedTest
+    @ValueSource(classes = {ValidationException.class, InternalServerException.class})
+    public void handleRequestInvalidInputRecovery(Class<? extends Exception> mwaaCreateEnvironmentExceptionClass) {
+        // given
+        final CreateHandler handler = new CreateHandler();
+        final ResourceModel model = ResourceModel.builder().name("NAME").kmsKey(INVALID_DATA).build();
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+        final GetEnvironmentRequest awsGetEnvironmentRequest = ReadTranslator.translateToReadRequest(model);
+        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(model);
+        final CreateEnvironmentResponse createEnvironmentResponse = CreateEnvironmentResponse.builder().build();
+
+        ProxyClient<MwaaClient> mwaaClientProxy = getProxies().getMwaaClientProxy();
+        final int expectedNumberOfInvocations = 5;
+
+        // when
+        when(mwaaClientProxy.injectCredentialsAndInvokeV2(awsGetEnvironmentRequest,
+                mwaaClientProxy.client()::getEnvironment))
+                // to indicate this environment does not exists and allow creation
+                .thenThrow(ResourceNotFoundException.class);
+
+        when(mwaaClientProxy.injectCredentialsAndInvokeV2(awsCreateEnvironmentRequest,
+                mwaaClientProxy.client()::createEnvironment))
+                .thenThrow(mwaaCreateEnvironmentExceptionClass)
+                .thenThrow(mwaaCreateEnvironmentExceptionClass)
+                .thenThrow(mwaaCreateEnvironmentExceptionClass)
+                .thenThrow(mwaaCreateEnvironmentExceptionClass)
+                .thenReturn(createEnvironmentResponse);
+        // then
+        ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(
+                getProxies(),
+                request,
+                new CallbackContext());
+        checkResponseNeedsCallback(response);
+        verify(getSdkClient(), times(expectedNumberOfInvocations)).createEnvironment(
+                any(CreateEnvironmentRequest.class));
+    }
+
+    /**
      * Asserts throwing {@link CfnInvalidRequestException} when given model has invalid data.
      */
     @Test
@@ -205,15 +295,21 @@ public class CreateHandlerTest extends HandlerTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
                 .build();
+        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(model);
+        final GetEnvironmentRequest awsGetEnvironmentRequest = ReadTranslator.translateToReadRequest(model);
 
-        when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
+        ProxyClient<MwaaClient> mwaaClientProxy = getProxies().getMwaaClientProxy();
+
+        // when
+        when(mwaaClientProxy.injectCredentialsAndInvokeV2(awsGetEnvironmentRequest,
+                mwaaClientProxy.client()::getEnvironment))
                 // to indicate this environment does not exists and allow creation
                 .thenThrow(ResourceNotFoundException.class);
 
-        when(getSdkClient().createEnvironment(any(CreateEnvironmentRequest.class)))
+        when(mwaaClientProxy.injectCredentialsAndInvokeV2(awsCreateEnvironmentRequest,
+                mwaaClientProxy.client()::createEnvironment))
                 .thenThrow(ValidationException.builder().message(INVALID_DATA).build());
 
-        // when
         try {
             handler.handleRequest(
                     getProxies(),
@@ -224,6 +320,8 @@ public class CreateHandlerTest extends HandlerTestBase {
         } catch (CfnInvalidRequestException e) {
             // expect exception
             assertThat(e.getMessage().contains(INVALID_DATA)).isTrue();
+            verify(getSdkClient(), times(CreateHandler.MAX_RETRIES)).createEnvironment(
+                    any(CreateEnvironmentRequest.class));
         }
     }
 

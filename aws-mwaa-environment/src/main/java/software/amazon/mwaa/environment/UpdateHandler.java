@@ -65,15 +65,13 @@ public class UpdateHandler extends BaseHandlerStd {
                         HandlerErrorCode.NotStabilized,
                         "Update failed, resource no longer exists");
             }
-
             if (status.get() == EnvironmentStatus.AVAILABLE) {
                 log("status is AVAILABLE, returning success");
                 return ProgressEvent.progress(model, callbackContext).then(
                         progress -> getEnvironmentDetails("Update::PostUpdateRead", proxies, progress));
             }
-
             if (status.get() == EnvironmentStatus.UPDATE_FAILED) {
-                log("status is UPDATE_FAILED, returning failure");
+                  log("status is UPDATE_FAILED, returning failure");
                 return ProgressEvent.failed(
                         model,
                         null,
@@ -88,8 +86,7 @@ public class UpdateHandler extends BaseHandlerStd {
                         HandlerErrorCode.NotStabilized,
                         String.format("Update failed, Environment unavailable. %s", errorMessage));
             }
-
-            log("status is %s, requesting a callback in %s", status, CALLBACK_DELAY);
+            log("status is {}, requesting a callback in {}", status, CALLBACK_DELAY);
             return ProgressEvent.<ResourceModel, CallbackContext>builder()
                     .resourceModel(model)
                     .callbackContext(callbackContext)
