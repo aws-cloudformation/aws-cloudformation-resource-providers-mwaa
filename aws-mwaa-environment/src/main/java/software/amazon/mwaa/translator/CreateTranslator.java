@@ -56,6 +56,7 @@ public final class CreateTranslator {
                         model.getWeeklyMaintenanceWindowStart())
                 .tags(toStringToStringMap(model.getTags()))
                 .webserverAccessMode(model.getWebserverAccessMode())
+                .endpointManagement(model.getEndpointManagement())
                 .build();
     }
 }

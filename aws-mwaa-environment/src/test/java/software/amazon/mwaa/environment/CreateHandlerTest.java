@@ -121,6 +121,57 @@ public class CreateHandlerTest extends HandlerTestBase {
     }
 
     /**
+     * Tests customer managed endpoint path.
+     */
+    @Test
+    public void handleRequestPendingDuringCreation() {
+        // given
+        final CreateHandler handler = new CreateHandler();
+        final ResourceModel model = createCfnModel();
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .build();
+        final GetEnvironmentResponse creating = createGetCreatingEnvironmentResponse();
+        final GetEnvironmentResponse pending = createGetPendingEnvironmentResponse();
+        final GetEnvironmentResponse available = createGetAvailableEnvironmentResponse();
+
+        when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
+                // at first the environment does not exist
+                .thenThrow(ResourceNotFoundException.class)
+                // for a while after creation it still doesn't exist
+                .thenThrow(ResourceNotFoundException.class)
+                // then it is in creating mode
+                .thenReturn(creating)
+                // then it is in creating mode
+                .thenReturn(creating)
+                // then it is pending
+                .thenReturn(pending);
+
+        final CreateEnvironmentResponse createEnvironmentResponse = CreateEnvironmentResponse.builder().build();
+        when(getSdkClient().createEnvironment(any(CreateEnvironmentRequest.class)))
+                .thenReturn(createEnvironmentResponse);
+        // when
+        ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(
+                getProxies(), request, new CallbackContext());
+        // then
+        checkResponseNeedsCallback(response);
+
+        // three times: first when env does not exist immediately after creation, then two times when it is in CREATING
+        for (int i = 1; i <= NUMBER_OF_CALLBACKS; i++) {
+            // when called back
+            response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+            // then
+            checkResponseNeedsCallback(response);
+        }
+
+        // when called back after environment is created
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        checkResponseIsSuccess(response, request.getDesiredResourceState());
+    }
+
+    /**
      * Tests a sad path.
      */
     @Test
@@ -337,6 +388,11 @@ public class CreateHandlerTest extends HandlerTestBase {
 
     private GetEnvironmentResponse createGetCreatingEnvironmentResponse() {
         final Environment environment = createApiEnvironment(EnvironmentStatus.CREATING);
+        return GetEnvironmentResponse.builder().environment(environment).build();
+    }
+
+    private GetEnvironmentResponse createGetPendingEnvironmentResponse() {
+        final Environment environment = createApiEnvironment(EnvironmentStatus.PENDING);
         return GetEnvironmentResponse.builder().environment(environment).build();
     }
 

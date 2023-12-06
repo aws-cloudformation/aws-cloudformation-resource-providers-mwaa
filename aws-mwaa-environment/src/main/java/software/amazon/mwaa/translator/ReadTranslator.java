@@ -75,8 +75,12 @@ public final class ReadTranslator {
                 .loggingConfiguration(toCfnLoggingConfiguration(env.loggingConfiguration()))
                 .weeklyMaintenanceWindowStart(env.weeklyMaintenanceWindowStart())
                 .tags(toStringToObjectMap(removeInternalTags(env.tags())))
+                .endpointManagement(env.endpointManagementAsString())
                 .webserverAccessMode(env.webserverAccessModeAsString())
                 .webserverUrl(env.webserverUrl())
+                .celeryExecutorQueue(env.celeryExecutorQueue())
+                .databaseVpcEndpointService(env.databaseVpcEndpointService())
+                .webserverVpcEndpointService(env.webserverVpcEndpointService())
                 .build();
     }
 }
