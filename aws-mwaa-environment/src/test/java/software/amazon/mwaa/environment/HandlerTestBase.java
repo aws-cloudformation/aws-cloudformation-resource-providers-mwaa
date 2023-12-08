@@ -18,6 +18,7 @@ import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.pagination.sync.SdkIterable;
 import software.amazon.awssdk.services.mwaa.MwaaClient;
+import software.amazon.awssdk.services.mwaa.model.EndpointManagement;
 import software.amazon.awssdk.services.mwaa.model.Environment;
 import software.amazon.awssdk.services.mwaa.model.EnvironmentStatus;
 import software.amazon.awssdk.services.mwaa.model.WebserverAccessMode;
@@ -71,6 +72,7 @@ public class HandlerTestBase {
     private static final String ARN_4 = "ARN_4";
     private static final String ARN_5 = "ARN_5";
     private static final String PRIVATE_ONLY = "PRIVATE_ONLY";
+    private static final String SERVICE = "SERVICE";
     private static final Duration CALLBACK_DELAY = Duration.ofMinutes(1);
 
     private static final int CLIENT_PROXY_TIMEOUT_SECONDS = 600;
@@ -204,6 +206,7 @@ public class HandlerTestBase {
                         new ModuleLoggingConfiguration(ENABLED, LOG_LEVEL_5, ARN_5)))
                 .tags(ImmutableMap.of(KEY, VALUE))
                 .webserverAccessMode(PRIVATE_ONLY)
+                .endpointManagement(SERVICE)
                 .build();
     }
 
@@ -231,6 +234,7 @@ public class HandlerTestBase {
                 .loggingConfiguration(createLoggingConfiguration())
                 .tags(ImmutableMap.of(KEY, VALUE, KEY_INTERNAL, VALUE_INTERNAL))
                 .webserverAccessMode(WebserverAccessMode.PRIVATE_ONLY)
+                .endpointManagement(EndpointManagement.SERVICE)
                 .status(status)
                 .build();
     }

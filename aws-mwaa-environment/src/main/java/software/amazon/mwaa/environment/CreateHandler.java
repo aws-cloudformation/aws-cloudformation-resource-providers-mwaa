@@ -55,6 +55,12 @@ public class CreateHandler extends BaseHandlerStd {
                             progress -> getEnvironmentDetails("Create::PostCreateRead", proxies, progress));
                 }
 
+                if (status.get() == EnvironmentStatus.PENDING) {
+                    log("status is PENDING, returning success");
+                    return ProgressEvent.progress(model, callbackContext).then(
+                            progress -> getEnvironmentDetails("Create::PostCreateRead", proxies, progress));
+                }
+
                 if (status.get() == EnvironmentStatus.CREATE_FAILED) {
                     log("status is CREATE_FAILED, returning failure");
                     return ProgressEvent.failed(
