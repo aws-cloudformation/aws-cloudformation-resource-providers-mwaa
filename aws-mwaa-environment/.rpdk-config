@@ -1,7 +1,7 @@
 {
     "typeName": "AWS::MWAA::Environment",
     "language": "java",
-    "runtime": "java8",
+    "runtime": "java17",
     "entrypoint": "software.amazon.mwaa.environment.HandlerWrapper::handleRequest",
     "testEntrypoint": "software.amazon.mwaa.environment.HandlerWrapper::handleRequest",
     "executableEntrypoint": "software.amazon.mwaa.environment.HandlerWrapperExecutable",
