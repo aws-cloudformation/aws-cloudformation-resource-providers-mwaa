@@ -12,13 +12,13 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: software.amazon.mwaa.environment.HandlerWrapper::handleRequest
-      Runtime: java8
+      Runtime: java17
       CodeUri: ./target/aws-mwaa-environment-1.0.jar
 
   TestEntrypoint:
     Type: AWS::Serverless::Function
     Properties:
       Handler: software.amazon.mwaa.environment.HandlerWrapper::testEntrypoint
-      Runtime: java8
+      Runtime: java17
       CodeUri: ./target/aws-mwaa-environment-1.0.jar
 
