@@ -8,7 +8,9 @@ import static software.amazon.mwaa.translator.TypeTranslator.toStringToStringMap
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 import software.amazon.awssdk.services.mwaa.MwaaClient;
 import software.amazon.awssdk.services.mwaa.model.Environment;
@@ -46,6 +48,26 @@ public class UpdateHandler extends BaseHandlerStd {
             final CallbackContext callbackContext) {
 
         final ResourceModel model = request.getDesiredResourceState();
+        final ResourceModel previousModel = request.getPreviousResourceState();
+
+        final Map<String, String> desiredSystemTags = request.getSystemTags();
+        final Map<String, String> desiredStackTags = request.getDesiredResourceTags();
+        final Map<String, String> desiredRequestTags = toStringToStringMap(model.getTags());
+
+        final Map<String, String> previousSystemTags = request.getPreviousSystemTags();
+        final Map<String, String> previousStackTags = request.getPreviousResourceTags();
+        final Map<String, String> previousRequestTags = toStringToStringMap(previousModel.getTags());
+
+        final Map<String, String> desiredTags = new HashMap<>();
+        desiredTags.putAll(Optional.ofNullable(desiredSystemTags).orElse(Collections.emptyMap()));
+        desiredTags.putAll(Optional.ofNullable(desiredStackTags).orElse(Collections.emptyMap()));
+        desiredTags.putAll(Optional.ofNullable(desiredRequestTags).orElse(Collections.emptyMap()));
+
+        final Map<String, String> previousTags = new HashMap<>();
+        previousTags.putAll(Optional.ofNullable(previousSystemTags).orElse(Collections.emptyMap()));
+        previousTags.putAll(Optional.ofNullable(previousStackTags).orElse(Collections.emptyMap()));
+        previousTags.putAll(Optional.ofNullable(previousRequestTags).orElse(Collections.emptyMap()));
+
         if (callbackContext.isStabilizing()) {
             log("callback context indicates Stabilizing mode");
             final Optional<EnvironmentStatus> status = getEnvironmentStatus(
@@ -96,19 +118,23 @@ public class UpdateHandler extends BaseHandlerStd {
         }
 
         return ProgressEvent.progress(model, callbackContext)
-                .then(progress -> startUpdateTask(proxies, progress, callbackContext));
+                .then(progress -> startUpdateTask(proxies, progress, desiredTags,
+                    previousTags, callbackContext));
     }
 
     private ProgressEvent<ResourceModel, CallbackContext> startUpdateTask(
             final Proxies proxies,
             final ProgressEvent<ResourceModel, CallbackContext> progress,
+            Map<String, String> desiredResourceTags,
+            Map<String, String> previousResourceTags,
             final CallbackContext callbackContext) {
 
         return startSubtask("Update", proxies, progress)
                 .translateToServiceRequest(UpdateTranslator::translateToUpdateRequest)
                 .makeServiceCall((awsRequest, mwaaClientProxy) -> doUpdateEnvironment(
                         awsRequest,
-                        toStringToStringMap(progress.getResourceModel().getTags()),
+                        desiredResourceTags,
+                        previousResourceTags,
                         mwaaClientProxy,
                         callbackContext))
                 .progress((int) CALLBACK_DELAY.getSeconds());
@@ -116,13 +142,14 @@ public class UpdateHandler extends BaseHandlerStd {
 
     private UpdateEnvironmentResponse doUpdateEnvironment(
             final UpdateEnvironmentRequest awsRequest,
-            Map<String, String> desiredTags,
+            Map<String, String> desiredResourceTags,
+            Map<String, String> previousResourceTags,
             final ProxyClient<MwaaClient> mwaaClientProxy,
             final CallbackContext callbackContext) {
 
         try {
             final String name = awsRequest.name();
-            updateTags(mwaaClientProxy, name, desiredTags);
+            updateTags(mwaaClientProxy, name, desiredResourceTags, previousResourceTags);
 
             log("Updating %s [%s]", ResourceModel.TYPE_NAME, name);
 
@@ -139,20 +166,23 @@ public class UpdateHandler extends BaseHandlerStd {
         }
     }
 
-    private void updateTags(ProxyClient<MwaaClient> mwaaClientProxy, String name, Map<String, String> desiredTags) {
+    private void updateTags(ProxyClient<MwaaClient> mwaaClientProxy, String name,
+            Map<String, String> desiredResourceTags, Map<String, String> previousResourceTags) {
         final Environment environment = getEnvironment(mwaaClientProxy, name);
-        log("Tags of %s: %s", environment.arn(), mapToLogString(environment.tags()));
+        log("Env Tags: %s", mapToLogString(environment.tags()));
+        log("Old Tags: %s", mapToLogString(previousResourceTags));
+        log("New Tags: %s", mapToLogString(desiredResourceTags));
 
-        final TagProcessor tagProcessor = new TagProcessor(environment.tags());
-        removeTags(mwaaClientProxy, tagProcessor, environment.arn(), desiredTags);
-        addTags(mwaaClientProxy, tagProcessor, environment.arn(), desiredTags);
+        final TagProcessor tagProcessor = new TagProcessor(previousResourceTags);
+        removeTags(mwaaClientProxy, tagProcessor, environment.arn(), desiredResourceTags);
+        addTags(mwaaClientProxy, tagProcessor, environment.arn(), desiredResourceTags);
     }
 
     private void removeTags(final ProxyClient<MwaaClient> mwaaClientProxy,
                             final TagProcessor tagProcessor,
                             final String arn,
-                            final Map<String, String> desiredTags) {
-        final Collection<String> tagsToRemove = tagProcessor.getTagsToRemove(desiredTags);
+                            final Map<String, String> desiredResourceTags) {
+        final Collection<String> tagsToRemove = tagProcessor.getTagsToRemove(desiredResourceTags);
         log("Tags to remove: %s", collectionToLogString(tagsToRemove));
         if (tagsToRemove.isEmpty()) {
             return;
@@ -171,8 +201,8 @@ public class UpdateHandler extends BaseHandlerStd {
     private void addTags(final ProxyClient<MwaaClient> mwaaClientProxy,
                          final TagProcessor tagProcessor,
                          final String arn,
-                         final Map<String, String> desiredTags) {
-        final Map<String, String> tagsToAdd = tagProcessor.getTagsToAdd(desiredTags);
+                         final Map<String, String> desiredResourceTags) {
+        final Map<String, String> tagsToAdd = tagProcessor.getTagsToAdd(desiredResourceTags);
         log("Tags to add: %s", mapToLogString(tagsToAdd));
         if (tagsToAdd.isEmpty()) {
             return;
