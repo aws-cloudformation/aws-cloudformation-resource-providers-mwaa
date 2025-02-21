@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,16 @@ public class UpdateHandlerTest extends HandlerTestBase {
     private static final Integer UPDATED_SCHEDULERS = 3;
     private static final String NEW_TAG_KEY = "NEW_KEY";
     private static final String NEW_TAG_VALUE = "NEW_VALUE";
+    private static final String OLD_TAG_KEY = "OLD_KEY";
+    private static final String OLD_TAG_VALUE = "OLD_VALUE";
+    private static final String NEW_STACK_KEY = "NEW_STACK_KEY";
+    private static final String NEW_STACK_VALUE = "NEW_STACK_VALUE";
+    private static final String OLD_STACK_KEY = "OLD_STACK_KEY";
+    private static final String OLD_STACK_VALUE = "OLD_STACK_VALUE";
+    private static final String NEW_SYSTEM_KEY = "NEW_SYSTEM_KEY";
+    private static final String NEW_SYSTEM_VALUE = "NEW_SYSTEM_VALUE";
+    private static final String OLD_SYSTEM_KEY = "OLD_SYSTEM_KEY";
+    private static final String OLD_SYSTEM_VALUE = "OLD_SYSTEM_VALUE";
     private static final String INVALID_DATA = "INVALID_DATA";
     private static final String LAST_UPDATE_ERROR_MESSAGE = "SOME_ERROR_MESSAGE";
     private UpdateError error = UpdateError.builder().errorMessage(LAST_UPDATE_ERROR_MESSAGE).build();
@@ -80,8 +91,11 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final UpdateHandler handler = new UpdateHandler();
         final ResourceModel model = createUpdatedCfnModel();
         model.setTags(ImmutableMap.of(NEW_TAG_KEY, NEW_TAG_VALUE));
+        final ResourceModel previousModel = createUpdatedCfnModel();
+        previousModel.setTags(ImmutableMap.of(OLD_TAG_KEY, OLD_TAG_VALUE));
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
@@ -122,6 +136,114 @@ public class UpdateHandlerTest extends HandlerTestBase {
     }
 
     /**
+     * Tests a happy path using stack tags.
+     */
+    @Test
+    public void handleRequestStackTagSuccess() {
+        // given
+        final UpdateHandler handler = new UpdateHandler();
+        final ResourceModel model = createUpdatedCfnModel();
+        final ResourceModel previousModel = createUpdatedCfnModel();
+        final Map<String, String> stackTags = ImmutableMap.of(OLD_STACK_KEY, OLD_STACK_VALUE);
+        final Map<String, String> newStackTags = ImmutableMap.of(NEW_STACK_KEY, NEW_STACK_VALUE);
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .previousResourceState(previousModel)
+                .desiredResourceTags(newStackTags)
+                .previousResourceTags(stackTags)
+                .build();
+
+        final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
+        final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
+        final GetEnvironmentResponse updated = createGetUpdatedEnvironmentResponse();
+
+        when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
+                // at first the environment exists
+                .thenReturn(existing)
+                // then it stays in updating mode for a while
+                .thenReturn(updating)
+                // at the end it is updated
+                .thenReturn(updated);
+
+        final UpdateEnvironmentResponse awsUpdateEnvironmentResponse = UpdateEnvironmentResponse.builder().build();
+        when(getSdkClient().updateEnvironment(any(UpdateEnvironmentRequest.class)))
+                .thenReturn(awsUpdateEnvironmentResponse);
+
+        // when
+        ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(
+                getProxies(), request, new CallbackContext());
+
+        // then
+        checkResponseNeedsCallback(response);
+        // when called back
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        checkResponseNeedsCallback(response);
+
+        // when called back after environment is updated
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        verify(getSdkClient(), times(1)).untagResource(any(UntagResourceRequest.class));
+        verify(getSdkClient(), times(1)).tagResource(any(TagResourceRequest.class));
+    }
+
+    /**
+     * Tests a happy path using system tags.
+     */
+    @Test
+    public void handleRequestSystemTagSuccess() {
+        // given
+        final UpdateHandler handler = new UpdateHandler();
+        final ResourceModel model = createUpdatedCfnModel();
+        final ResourceModel previousModel = createUpdatedCfnModel();
+        final Map<String, String> systemTags = ImmutableMap.of(OLD_SYSTEM_KEY, OLD_SYSTEM_VALUE);
+        final Map<String, String> newSystemTags = ImmutableMap.of(NEW_SYSTEM_KEY, NEW_SYSTEM_VALUE);
+        final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
+                .desiredResourceState(model)
+                .previousResourceState(previousModel)
+                .systemTags(newSystemTags)
+                .previousSystemTags(systemTags)
+                .build();
+
+        final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
+        final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
+        final GetEnvironmentResponse updated = createGetUpdatedEnvironmentResponse();
+
+        when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
+                // at first the environment exists
+                .thenReturn(existing)
+                // then it stays in updating mode for a while
+                .thenReturn(updating)
+                // at the end it is updated
+                .thenReturn(updated);
+
+        final UpdateEnvironmentResponse awsUpdateEnvironmentResponse = UpdateEnvironmentResponse.builder().build();
+        when(getSdkClient().updateEnvironment(any(UpdateEnvironmentRequest.class)))
+                .thenReturn(awsUpdateEnvironmentResponse);
+
+        // when
+        ProgressEvent<ResourceModel, CallbackContext> response = handler.handleRequest(
+                getProxies(), request, new CallbackContext());
+
+        // then
+        checkResponseNeedsCallback(response);
+        // when called back
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        checkResponseNeedsCallback(response);
+
+        // when called back after environment is updated
+        response = handler.handleRequest(getProxies(), request, response.getCallbackContext());
+
+        // then
+        verify(getSdkClient(), times(1)).untagResource(any(UntagResourceRequest.class));
+        verify(getSdkClient(), times(1)).tagResource(any(TagResourceRequest.class));
+    }
+
+    /**
      * Tests a sad path.
      */
     @Test
@@ -131,6 +253,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final ResourceModel model = createUpdatedCfnModel();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(model)
                 .build();
         final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
         final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
@@ -183,6 +306,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final ResourceModel model = createUpdatedCfnModel();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(model)
                 .build();
         final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
         final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
@@ -237,6 +361,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final ResourceModel model = createUpdatedCfnModel();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(model)
                 .build();
         final GetEnvironmentResponse existing = createGetExistingEnvironmentResponse();
         final GetEnvironmentResponse updating = createGetUpdatingEnvironmentResponse();
@@ -290,6 +415,7 @@ public class UpdateHandlerTest extends HandlerTestBase {
         final ResourceModel model = ResourceModel.builder().name("NAME").build();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(model)
                 .build();
 
         when(getSdkClient().getEnvironment(any(GetEnvironmentRequest.class)))
@@ -317,8 +443,12 @@ public class UpdateHandlerTest extends HandlerTestBase {
         // given
         final UpdateHandler handler = new UpdateHandler();
         final ResourceModel model = ResourceModel.builder().name("NAME").kmsKey(INVALID_DATA).build();
+        final ResourceModel previousModel = ResourceModel.builder()
+                .name("NAME")
+                .tags(ImmutableMap.of(OLD_TAG_KEY, OLD_TAG_VALUE)).build();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         final GetEnvironmentResponse awsGetExistingEnvironmentResponse = createGetExistingEnvironmentResponse();
@@ -353,8 +483,11 @@ public class UpdateHandlerTest extends HandlerTestBase {
         // given
         final UpdateHandler handler = new UpdateHandler();
         final ResourceModel model = ResourceModel.builder().build();
+        final ResourceModel previousModel = ResourceModel.builder()
+                .tags(ImmutableMap.of(OLD_TAG_KEY, OLD_TAG_VALUE)).build();
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .previousResourceState(previousModel)
                 .build();
 
         final GetEnvironmentResponse awsGetExistingEnvironmentResponse = createGetExistingEnvironmentResponse();
