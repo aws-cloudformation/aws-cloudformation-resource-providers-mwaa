@@ -6,6 +6,7 @@ import static software.amazon.mwaa.translator.TypeTranslator.toApiLoggingConfigu
 import static software.amazon.mwaa.translator.TypeTranslator.toApiNetworkConfiguration;
 import static software.amazon.mwaa.translator.TypeTranslator.toStringToStringMap;
 
+import java.util.Map;
 import software.amazon.awssdk.services.mwaa.model.CreateEnvironmentRequest;
 import software.amazon.mwaa.environment.ResourceModel;
 
@@ -24,7 +25,8 @@ public final class CreateTranslator {
      *         resource model
      * @return awsRequest the aws service request to create a resource
      */
-    public static CreateEnvironmentRequest translateToCreateRequest(final ResourceModel model) {
+    public static CreateEnvironmentRequest translateToCreateRequest(final ResourceModel model,
+                final Map<String, String> tags) {
 
         return CreateEnvironmentRequest.builder()
                 .name(model.getName())
@@ -47,6 +49,8 @@ public final class CreateTranslator {
                 .environmentClass(model.getEnvironmentClass())
                 .maxWorkers(model.getMaxWorkers())
                 .minWorkers(model.getMinWorkers())
+                .maxWebservers(model.getMaxWebservers())
+                .minWebservers(model.getMinWebservers())
                 .schedulers(model.getSchedulers())
                 .networkConfiguration(toApiNetworkConfiguration(
                         model.getNetworkConfiguration()))
@@ -54,7 +58,7 @@ public final class CreateTranslator {
                         model.getLoggingConfiguration()))
                 .weeklyMaintenanceWindowStart(
                         model.getWeeklyMaintenanceWindowStart())
-                .tags(toStringToStringMap(model.getTags()))
+                .tags(!tags.isEmpty() ? tags : null)
                 .webserverAccessMode(model.getWebserverAccessMode())
                 .endpointManagement(model.getEndpointManagement())
                 .build();

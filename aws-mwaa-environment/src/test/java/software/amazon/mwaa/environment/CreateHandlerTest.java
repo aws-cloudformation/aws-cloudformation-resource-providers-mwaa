@@ -12,6 +12,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+import java.util.HashMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -128,8 +131,10 @@ public class CreateHandlerTest extends HandlerTestBase {
         // given
         final CreateHandler handler = new CreateHandler();
         final ResourceModel model = createCfnModel();
+        final Map<String, String> tags = ImmutableMap.of("Key", "Value");
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
+                .desiredResourceTags(tags)
                 .build();
         final GetEnvironmentResponse creating = createGetCreatingEnvironmentResponse();
         final GetEnvironmentResponse pending = createGetPendingEnvironmentResponse();
@@ -267,7 +272,9 @@ public class CreateHandlerTest extends HandlerTestBase {
                 .desiredResourceState(model)
                 .build();
         final GetEnvironmentRequest awsGetEnvironmentRequest = ReadTranslator.translateToReadRequest(model);
-        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(model);
+        final Map<String, String> tags = new HashMap<>();
+        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(
+                model, tags);
         ProxyClient<MwaaClient> mwaaClientProxy = getProxies().getMwaaClientProxy();
 
         // when
@@ -306,7 +313,9 @@ public class CreateHandlerTest extends HandlerTestBase {
                 .desiredResourceState(model)
                 .build();
         final GetEnvironmentRequest awsGetEnvironmentRequest = ReadTranslator.translateToReadRequest(model);
-        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(model);
+        final Map<String, String> tags = new HashMap<>();
+        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(
+                model, tags);
         final CreateEnvironmentResponse createEnvironmentResponse = CreateEnvironmentResponse.builder().build();
 
         ProxyClient<MwaaClient> mwaaClientProxy = getProxies().getMwaaClientProxy();
@@ -346,7 +355,9 @@ public class CreateHandlerTest extends HandlerTestBase {
         final ResourceHandlerRequest<ResourceModel> request = ResourceHandlerRequest.<ResourceModel>builder()
                 .desiredResourceState(model)
                 .build();
-        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(model);
+        final Map<String, String> tags = new HashMap<>();
+        final CreateEnvironmentRequest awsCreateEnvironmentRequest = CreateTranslator.translateToCreateRequest(
+                model, tags);
         final GetEnvironmentRequest awsGetEnvironmentRequest = ReadTranslator.translateToReadRequest(model);
 
         ProxyClient<MwaaClient> mwaaClientProxy = getProxies().getMwaaClientProxy();

@@ -2,6 +2,8 @@
 
 package software.amazon.mwaa.environment;
 
+import static software.amazon.mwaa.translator.TypeTranslator.toStringToStringMap;
+
 import com.github.rholder.retry.Attempt;
 import com.github.rholder.retry.RetryException;
 import com.github.rholder.retry.RetryListener;
@@ -9,7 +11,10 @@ import com.github.rholder.retry.Retryer;
 import com.github.rholder.retry.RetryerBuilder;
 import com.github.rholder.retry.StopStrategies;
 import com.github.rholder.retry.WaitStrategies;
+import java.util.Collections;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import software.amazon.awssdk.services.mwaa.MwaaClient;
@@ -41,6 +46,15 @@ public class CreateHandler extends BaseHandlerStd {
             final CallbackContext callbackContext) {
 
         final ResourceModel model = request.getDesiredResourceState();
+
+        final Map<String, String> desiredSystemTags = request.getSystemTags();
+        final Map<String, String> desiredStackTags = request.getDesiredResourceTags();
+        final Map<String, String> desiredRequestTags = toStringToStringMap(model.getTags());
+
+        final Map<String, String> desiredTags = new HashMap<>();
+        desiredTags.putAll(Optional.ofNullable(desiredSystemTags).orElse(Collections.emptyMap()));
+        desiredTags.putAll(Optional.ofNullable(desiredStackTags).orElse(Collections.emptyMap()));
+        desiredTags.putAll(Optional.ofNullable(desiredRequestTags).orElse(Collections.emptyMap()));
 
         if (callbackContext.isStabilizing()) {
             log("callback context indicates Stabilizing mode");
@@ -81,16 +95,17 @@ public class CreateHandler extends BaseHandlerStd {
         }
 
         return ProgressEvent.progress(model, callbackContext)
-                .then(progress -> startCreationTask(proxies, progress, callbackContext));
+                .then(progress -> startCreationTask(proxies, progress, desiredTags, callbackContext));
     }
 
     private ProgressEvent<ResourceModel, CallbackContext> startCreationTask(
             final Proxies proxies,
             final ProgressEvent<ResourceModel, CallbackContext> progress,
+            final Map<String, String> desiredTags,
             final CallbackContext callbackContext) {
 
         return startSubtask("Create", proxies, progress)
-                .translateToServiceRequest(CreateTranslator::translateToCreateRequest)
+                .translateToServiceRequest(model -> CreateTranslator.translateToCreateRequest(model, desiredTags))
                 .makeServiceCall((awsRequest, mwaaClientProxy) ->
                                          doCreateEnvironment(awsRequest, mwaaClientProxy, callbackContext))
                 .progress((int) CALLBACK_DELAY.getSeconds());
